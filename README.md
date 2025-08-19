@@ -54,40 +54,59 @@ Organizations or individuals using this software must comply with relevant terms
 ## ​​免费使用 | Free Usage​​
 
 **​​适用范围​​**：个人开发者、学术研究及非商业项目可免费使用<br>
+
 **​​Scope​**​: Free for individual developers, academic research, and non-commercial projects.<br><br>
 
 **​​商业限制**​​：若将ClkLog集成到闭源商业产品中，任何修改、二开、集成须遵循 AGPLv3.0 协议开源衍生产品<br>
+
 **​​Commercial Restrictions​**​: If integrated into closed-source commercial products, ​​any modification, secondary development, or integration shall open-source derivative works​​ under AGPLv3.0.<br><br>
 
 **​​授权方式​**​：遵循 AGPLv3.0 协议<br>
+
 **​​Licensing Mode**​​: Subject to AGPLv3.0 license.<br><br>
 
 ## ​​商业授权 | Commercial License​​
 
 **​​适用范围**​​：商业项目集成可闭源使用<br>
+
 **​​Scope**​​: Permits closed-source integration for commercial projects.<br><br>
 
 **​​授权方式​**​：需购买商业授权<br>
+
 **​​Licensing Mode​​**: Requires purchasing a commercial license.<br><br>
 
 ## ​​特别提醒 | Special Notice
 
 ​​在AGPL V3.0协议中​​，“衍生产品”是指：在 ClkLog 源代码基础上进行任何修改、扩展、适配、重构，或与其他软件、系统组合后形成的作品，包括但不限于：<br>
+
 ​​Under AGPLv3.0​​, ​​"Derivative Works"​​ refer to any works created through modification, extension, adaptation, refactoring of ClkLog source code, or combination with other software/systems, including but not limited to:<br>
+
 • 修改、删除或新增源代码的版本；<br>
+
 • Versions with modified, deleted, or added source code;<br>
+
 • 增加功能模块、插件或集成接口的版本；<br>
+
 • Versions adding functional modules, plugins, or integration interfaces;<br>
+
 • 将 ClkLog 嵌入或整合进其他产品、系统或服务的版本；<br>
+
 • Versions embedding or integrating ClkLog into other products, systems, or services;<br>
+
 • 改变数据结构、接口协议或运行架构的版本。<br>
+
 • Versions altering data structures, interface protocols, or runtime architectures.<br>
+
 无论改动大小，只要衍生产品包含 ClkLog 的代码或核心逻辑，即视为衍生产品，并适用本协议的相关条款。<br>
+
 ​​Regardless of modification scale, any work containing ClkLog's code or core logic shall constitute a Derivative Work and is subject to relevant terms of AGPLv3.0.​<br>
 
 # 联系我们/Contact Us
 
 - 客服邮箱/Customer service Email:<info@clklog.com>
+
 - 客服手机/Customer service mobile：16621363853
+
 - 客服微信/Customer service WeChat：opensoft66
+
 - 客服二维码/Customer service QR Code:<img title="" src="https://clklog.com/assets/imgs/contactqrcode.jpg" alt="" data-align="center" width="120" style="vertical-align:top">
