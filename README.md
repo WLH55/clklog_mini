@@ -44,9 +44,9 @@ Demo address/演示地址：<a href="https://demo.clklog.com" target="_blank">ht
 
 官方文档/Official Documents<a href="https://clklog.com">https://clklog.com</a>
 
-# License Agreement​​/协议许可
+# 协议许可​/License Agreement​
 
-## Open-source agreement/开源协议：AGPLv3.0
+## 开源协议/Open-source agreement：AGPLv3.0
 
 使用的组织或个人在复制、分发、转发或修改时请遵守相关条款。任何分发或通过网络提供服务的版本（包括衍生版本）必须开源，并保留原版权和协议信息。如有违反，ClkLog将保留对侵权者追究责任的权利。<br>
 Organizations or individuals using this software must comply with relevant terms when copying, distributing, ​​redistributing​​, or modifying it.Any distributed versions or versions provided as a network service (including derivative versions) must be open source with original copyright and license information preserved.ClkLog reserves the right to take legal action against infringers for any violations.<br><br>
@@ -102,8 +102,6 @@ Organizations or individuals using this software must comply with relevant terms
 ​​Regardless of modification scale, any work containing ClkLog's code or core logic shall constitute a Derivative Work and is subject to relevant terms of AGPLv3.0.​<br>
 
 # 联系我们/Contact Us
-
-- 客服邮箱/Customer service Email:<info@clklog.com>
 
 - 客服手机/Customer service mobile：16621363853
 
