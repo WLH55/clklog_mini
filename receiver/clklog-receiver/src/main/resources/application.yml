@@ -1,0 +1,45 @@
+server:
+  port: 8080
+
+logging:
+  file:
+    path: log
+
+spring:
+  application.name: clklog-receiver
+
+  # Redis 配置 - 连接 Docker 容器
+  redis:
+    host: localhost
+    port: 6379
+    password:
+
+  # Kafka 配置 - 连接 Docker 容器
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      client-id: "clklog-producer-group"
+      retries: 3
+      topic: clklog
+      acks: 0
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      properties:
+        linger:
+          ms: 1000
+    listener:
+      ack-mode: MANUAL_IMMEDIATE
+
+  # ClickHouse 配置 - 连接 Docker 容器
+  datasource:
+    clickhouse:
+      jdbc-url: jdbc:clickhouse://localhost:8123/default
+      username: default
+      password: clklogpwd
+
+receiver:
+  thread-count: 2
+  project-list: firebase-analytics
+  resource-path: D:\coding\clklog\receiver\clklog-receiver
+  enable-simple-version: false
+  access-control-allow-origin-patterns: "*"
