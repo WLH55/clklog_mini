@@ -1,0 +1,15 @@
+# IDE
+.idea/
+*.iml
+
+# 日志
+log/
+*.log
+
+# 编译产物
+simple-consumer/target/
+receiver/clklog-receiver/target/
+
+# IP 库大文件
+receiver/clklog-receiver/iplib/*.BIN
+receiver/clklog-receiver/iplib/*.bin
