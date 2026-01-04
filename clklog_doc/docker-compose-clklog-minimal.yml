@@ -1,0 +1,46 @@
+include:
+  - path: ./docker-compose-clklog-minimal-base.yml
+
+services:
+  # 移除 Flink 服务，使用本地 Simple Consumer 代替
+  # - jobmanager (已移除)
+  # - taskmanager (已移除)
+
+  # Receiver - 数据采集服务
+  clklog-receiver:
+    image: "registry.cn-shanghai.aliyuncs.com/clklog/receiver:1.2.0"
+    restart: "always"
+    depends_on:
+      - clickhouse
+      - redis
+    ports:
+      - "8080:8080"  # 暴露端口供 SDK 上报
+    volumes:
+      # 挂载采集的日志备份
+      - ./clklog_dc_data/receiver/:/log
+    environment:
+      - TZ=Asia/Shanghai
+      - SERVER_PORT=8080
+      - SPRING_REDIS_HOST=redis
+      - SPRING_REDIS_PORT=6379
+      - SPRING_DATASOURCE_CLICKHOUSE_JDBC_URL=jdbc:clickhouse://clickhouse/firebase_analytics
+      - SPRING_DATASOURCE_CLICKHOUSE_USERNAME=${CK_USER_NAME}
+      - SPRING_DATASOURCE_CLICKHOUSE_PASSWORD=${CK_USER_PWD}
+      - RECEIVER_RESOURCE_PATH=
+      - RECEIVER_ENABLE_SIMPLE_VERSION=false
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '0.8'
+          memory: 1024M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 移除 MySQL 相关依赖
+  # init-kafka 保持不变，但需要移除 mysql 依赖（如果有的话）
