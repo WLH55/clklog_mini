@@ -588,7 +588,7 @@ public class ReceiveServiceImpl implements IReceiveService {
     }
 
     /**
-     * 解析神策数据并直接写入 events_flat 表
+     * 解析神策数据并直接写入 sensors_events 表
      *
      * @param queryCriteria 查询条件
      */
@@ -603,24 +603,24 @@ public class ReceiveServiceImpl implements IReceiveService {
             // 解析 JSON 数组
             JsonNode array = objectMapper.readTree(queryCriteria.getData());
 
-            List<EventsFlatLogBean> beanList = new ArrayList<>();
+            List<SensorsEventsLogBean> beanList = new ArrayList<>();
 
             if (array.isArray()) {
                 for (JsonNode jsonNode : array) {
-                    EventsFlatLogBean bean = SensorsDataMapper.mapToEventsFlat(jsonNode);
+                    SensorsEventsLogBean bean = SensorsDataMapper.mapToSensorsEvents(jsonNode);
                     if (com.zcunsoft.util.SensorsDataMapper.isValid(bean)) {
                         beanList.add(bean);
                     }
                 }
             } else {
-                EventsFlatLogBean bean = SensorsDataMapper.mapToEventsFlat(array);
+                SensorsEventsLogBean bean = SensorsDataMapper.mapToSensorsEvents(array);
                 if (SensorsDataMapper.isValid(bean)) {
                     beanList.add(bean);
                 }
             }
 
             if (!beanList.isEmpty()) {
-                doSaveToEventsFlat(beanList);
+                doSaveToSensorsEvents(beanList);
             }
 
         } catch (Exception ex) {
@@ -629,43 +629,39 @@ public class ReceiveServiceImpl implements IReceiveService {
     }
 
     /**
-     * 批量写入 events_flat 表
+     * 批量写入 sensors_events 表
      *
-     * @param beanList EventsFlatLogBean 列表
+     * @param beanList SensorsEventsLogBean 列表
      */
-    private void doSaveToEventsFlat(List<EventsFlatLogBean> beanList) {
-        String sql = "INSERT INTO events_flat (" +
+    private void doSaveToSensorsEvents(List<SensorsEventsLogBean> beanList) {
+        // 将毫秒时间戳转换为 DateTime64(3) 格式（除以1000得到秒）
+        String sql = "INSERT INTO sensors_events (" +
                 "_track_id, time, type, distinct_id, anonymous_id, event, _flush_time," +
-                "lib_method, lib, lib_version, app_version," +
-                "event_date, event_timestamp, event_name, user_pseudo_id, user_first_touch_timestamp, is_active_user," +
-                "device_category, device_mobile_brand_name, device_mobile_model_name, device_mobile_marketing_name, " +
-                "device_mobile_os_hardware_model, device_operating_system, device_operating_system_version, " +
-                "device_language, device_time_zone_offset_seconds, device_is_limited_ad_tracking, " +
-                "device_vendor_id, device_advertising_id, device_browser, device_browser_version," +
-                "geo_city, geo_country, geo_continent, geo_region, geo_sub_continent, geo_metro," +
-                "app_info_id, app_info_version, app_info_install_source, app_info_install_store, app_info_firebase_app_id," +
-                "privacy_info_analytics_storage, privacy_info_ads_storage, privacy_info_uses_transient_token," +
-                "is_first_day, os, os_version, manufacturer, model, brand, app_id, app_name, wifi, network_type, " +
-                "screen_width, screen_height, timezone_offset, device_id," +
-                "raw_event_params, raw_user_properties, raw_properties" +
+                "identity_anonymous_id, identity_android_id," +
+                "lib_method, lib, lib_version, app_version, lib_detail," +
+                "town_name, town_action," +
+                "is_first_day, os, os_version, manufacturer, model, brand," +
+                "screen_width, screen_height, timezone_offset, app_id, app_name," +
+                "wifi, network_type, lib_plugin_version, device_id," +
+                "raw_identities, raw_lib, raw_properties, raw_event_params" +
                 ") VALUES (" +
-                "?, ?, ?, ?, ?, ?, ?, " +
-                "?, ?, ?, ?, " +
-                "?, ?, ?, ?, ?, ?, " +
-                "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, " +
+                "?, fromUnixTimestamp64Milli(?, 3), ?, ?, ?, ?, fromUnixTimestamp64Milli(?, 3), " +
+                "?, ?, " +
+                "?, ?, ?, ?, ?, " +
+                "?, ?, " +
                 "?, ?, ?, ?, ?, ?, " +
                 "?, ?, ?, ?, ?, " +
-                "?, ?, ?, ?, ?, ?, " +
-                "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                "?, ?, ?, ?, " +
+                "?, ?, ?, ?)";
 
         clickHouseJdbcTemplate.batchUpdate(sql, new BatchPreparedStatementSetter() {
             @Override
             public void setValues(PreparedStatement pst, int i) throws SQLException {
-                com.zcunsoft.model.EventsFlatLogBean bean = beanList.get(i);
+                SensorsEventsLogBean bean = beanList.get(i);
 
                 int idx = 1;
 
-                // 原始神策字段
+                // 基本事件信息
                 pst.setLong(idx++, nvlLong(bean.get_track_id()));
                 pst.setLong(idx++, nvlLong(bean.getTime()));
                 pst.setString(idx++, nvl(bean.getType()));
@@ -674,55 +670,20 @@ public class ReceiveServiceImpl implements IReceiveService {
                 pst.setString(idx++, nvl(bean.getEvent()));
                 pst.setLong(idx++, nvlLong(bean.get_flush_time()));
 
+                // 用户身份信息
+                pst.setString(idx++, nvl(bean.getIdentity_anonymous_id()));
+                pst.setString(idx++, nvl(bean.getIdentity_android_id()));
+
                 // SDK 信息
                 pst.setString(idx++, nvl(bean.getLib_method()));
                 pst.setString(idx++, nvl(bean.getLib()));
                 pst.setString(idx++, nvl(bean.getLib_version()));
                 pst.setString(idx++, nvl(bean.getApp_version()));
+                pst.setString(idx++, nvl(bean.getLib_detail()));
 
-                // Firebase 顶层字段
-                pst.setString(idx++, nvl(bean.getEvent_date()));
-                pst.setLong(idx++, nvlLong(bean.getEvent_timestamp()));
-                pst.setString(idx++, nvl(bean.getEvent_name()));
-                pst.setString(idx++, nvl(bean.getUser_pseudo_id()));
-                pst.setLong(idx++, nvlLong(bean.getUser_first_touch_timestamp()));
-                pst.setBoolean(idx++, nvlBoolean(bean.getIs_active_user()));
-
-                // device 信息
-                pst.setString(idx++, nvl(bean.getDevice_category()));
-                pst.setString(idx++, nvl(bean.getDevice_mobile_brand_name()));
-                pst.setString(idx++, nvl(bean.getDevice_mobile_model_name()));
-                pst.setString(idx++, nvl(bean.getDevice_mobile_marketing_name()));
-                pst.setString(idx++, nvl(bean.getDevice_mobile_os_hardware_model()));
-                pst.setString(idx++, nvl(bean.getDevice_operating_system()));
-                pst.setString(idx++, nvl(bean.getDevice_operating_system_version()));
-                pst.setString(idx++, nvl(bean.getDevice_language()));
-                pst.setInt(idx++, nvlInt(bean.getDevice_time_zone_offset_seconds()));
-                pst.setString(idx++, nvl(bean.getDevice_is_limited_ad_tracking()));
-                pst.setString(idx++, nvl(bean.getDevice_vendor_id()));
-                pst.setString(idx++, nvl(bean.getDevice_advertising_id()));
-                pst.setString(idx++, nvl(bean.getDevice_browser()));
-                pst.setString(idx++, nvl(bean.getDevice_browser_version()));
-
-                // geo 信息
-                pst.setString(idx++, nvl(bean.getGeo_city()));
-                pst.setString(idx++, nvl(bean.getGeo_country()));
-                pst.setString(idx++, nvl(bean.getGeo_continent()));
-                pst.setString(idx++, nvl(bean.getGeo_region()));
-                pst.setString(idx++, nvl(bean.getGeo_sub_continent()));
-                pst.setString(idx++, nvl(bean.getGeo_metro()));
-
-                // app_info 信息
-                pst.setString(idx++, nvl(bean.getApp_info_id()));
-                pst.setString(idx++, nvl(bean.getApp_info_version()));
-                pst.setString(idx++, nvl(bean.getApp_info_install_source()));
-                pst.setString(idx++, nvl(bean.getApp_info_install_store()));
-                pst.setString(idx++, nvl(bean.getApp_info_firebase_app_id()));
-
-                // privacy_info 信息
-                pst.setString(idx++, nvl(bean.getPrivacy_info_analytics_storage()));
-                pst.setString(idx++, nvl(bean.getPrivacy_info_ads_storage()));
-                pst.setString(idx++, nvl(bean.getPrivacy_info_uses_transient_token()));
+                // 自定义事件参数
+                pst.setString(idx++, nvl(bean.getTown_name()));
+                pst.setString(idx++, nvl(bean.getTown_action()));
 
                 // 神策预置属性
                 pst.setBoolean(idx++, nvlBoolean(bean.getIs_first_day()));
@@ -731,19 +692,35 @@ public class ReceiveServiceImpl implements IReceiveService {
                 pst.setString(idx++, nvl(bean.getManufacturer()));
                 pst.setString(idx++, nvl(bean.getModel()));
                 pst.setString(idx++, nvl(bean.getBrand()));
+                pst.setInt(idx++, nvlInt(bean.getScreen_width()));
+                pst.setInt(idx++, nvlInt(bean.getScreen_height()));
+                pst.setInt(idx++, nvlInt(bean.getTimezone_offset()));
                 pst.setString(idx++, nvl(bean.getApp_id()));
                 pst.setString(idx++, nvl(bean.getApp_name()));
                 pst.setBoolean(idx++, nvlBoolean(bean.getWifi()));
                 pst.setString(idx++, nvl(bean.getNetwork_type()));
-                pst.setInt(idx++, nvlInt(bean.getScreen_width()));
-                pst.setInt(idx++, nvlInt(bean.getScreen_height()));
-                pst.setInt(idx++, nvlInt(bean.getTimezone_offset()));
+
+                // lib_plugin_version 数组
+                List<String> plugins = bean.getLib_plugin_version();
+                if (plugins != null && !plugins.isEmpty()) {
+                    // 使用 join 构建数组字符串: ['v1','v2']
+                    StringBuilder sb = new StringBuilder("[");
+                    for (int j = 0; j < plugins.size(); j++) {
+                        if (j > 0) sb.append(",");
+                        sb.append("'").append(plugins.get(j).replace("'", "\\'")).append("'");
+                    }
+                    sb.append("]");
+                    pst.setString(idx++, sb.toString());
+                } else {
+                    pst.setString(idx++, "[]");
+                }
                 pst.setString(idx++, nvl(bean.getDevice_id()));
 
-                // 原始 JSON 字符串
-                pst.setString(idx++, nvl(bean.getRaw_event_params()));
-                pst.setString(idx++, nvl(bean.getRaw_user_properties()));
+                // 原始 JSON 字段
+                pst.setString(idx++, nvl(bean.getRaw_identities()));
+                pst.setString(idx++, nvl(bean.getRaw_lib()));
                 pst.setString(idx++, nvl(bean.getRaw_properties()));
+                pst.setString(idx++, nvl(bean.getRaw_event_params()));
             }
 
             @Override
@@ -752,7 +729,7 @@ public class ReceiveServiceImpl implements IReceiveService {
             }
         });
 
-        logger.info("成功写入 events_flat 表 {} 条记录", beanList.size());
+        logger.info("成功写入 sensors_events 表 {} 条记录", beanList.size());
     }
 
     /**
