@@ -1,13 +1,9 @@
 package com.zcunsoft.util;
 
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.zcunsoft.model.PathRule;
 import com.zcunsoft.model.ProjectSetting;
 import com.zcunsoft.model.Region;
-import nl.basjes.parse.useragent.AbstractUserAgentAnalyzer;
-import nl.basjes.parse.useragent.AgentField;
-import nl.basjes.parse.useragent.UserAgent;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -17,7 +13,6 @@ import java.io.File;
 import java.io.UnsupportedEncodingException;
 import java.net.URL;
 import java.net.URLDecoder;
-import java.sql.Timestamp;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.*;

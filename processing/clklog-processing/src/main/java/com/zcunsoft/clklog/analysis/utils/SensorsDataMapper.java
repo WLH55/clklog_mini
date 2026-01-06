@@ -1,22 +1,21 @@
-package com.zcunsoft.util;
+package com.zcunsoft.clklog.analysis.utils;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.zcunsoft.model.SensorsEventsLogBean;
+import com.zcunsoft.clklog.analysis.bean.SensorsEventsLogBean;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * 神策数据映射工具类
- * 将神策 JSON 数据映射到 EventsFlatLogBean
+ * 将神策 JSON 数据映射到 SensorsEventsLogBean
  */
 public class SensorsDataMapper {
 
-    private static final Logger logger = LogManager.getLogger(SensorsDataMapper.class);
-
+    private static final Logger logger = LoggerFactory.getLogger(SensorsDataMapper.class);
 
     /**
      * 将神策 JSON 数据映射到 SensorsEventsLogBean
@@ -98,7 +97,6 @@ public class SensorsDataMapper {
                 if (properties.has("event_params")) {
                     String eventParamsStr = properties.get("event_params").asText();
                     bean.setRaw_event_params(eventParamsStr);
-                    parseEventParams(eventParamsStr, bean);
                 }
 
                 // ========== 神策预置属性 ==========
@@ -162,45 +160,6 @@ public class SensorsDataMapper {
         }
 
         return bean;
-    }
-
-    /**
-     * 解析 event_params JSON 字符串
-     * event_params 格式：[{"key":"town_name","value":{"string_value":"foodStreet"}},...]
-     *
-     * @param eventParamsStr event_params JSON 字符串
-     * @param bean 目标 bean
-     */
-    private static void parseEventParams(String eventParamsStr, SensorsEventsLogBean bean) {
-        try {
-            JsonNode arrayNode = new ObjectMapperUtil().readTree(eventParamsStr);
-            if (arrayNode.isArray()) {
-                for (JsonNode item : arrayNode) {
-                    if (item.has("key") && item.has("value")) {
-                        String key = item.get("key").asText();
-                        JsonNode valueNode = item.get("value");
-
-                        // 提取 string_value
-                        if (valueNode.has("string_value") && !valueNode.get("string_value").isNull()) {
-                            String value = valueNode.get("string_value").asText();
-
-                            // 根据不同的 key 设置不同的字段
-                            switch (key) {
-                                case "town_name":
-                                    bean.setTown_name(value);
-                                    break;
-                                case "town_action":
-                                    bean.setTown_action(value);
-                                    break;
-                                // 可扩展其他自定义参数
-                            }
-                        }
-                    }
-                }
-            }
-        } catch (Exception e) {
-            logger.warn("解析 event_params 失败: {}", eventParamsStr, e);
-        }
     }
 
     /**

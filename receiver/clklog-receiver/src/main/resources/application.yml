@@ -35,13 +35,13 @@ spring:
     clickhouse:
       jdbc-url: jdbc:clickhouse://localhost:8123/default
       username: default
-      password: clklogpwd
+      password:
 
 receiver:
   thread-count: 2
   project-list: firebase-analytics
   resource-path: D:\coding\clklog\receiver\clklog-receiver
-  enable-simple-version: true
+  enable-simple-version: false
   batch-size: 1000          # 批量处理大小
   flush-interval: 5000      # 时间触发间隔（毫秒）
   access-control-allow-origin-patterns: "*"

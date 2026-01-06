@@ -1,11 +1,9 @@
 package com.zcunsoft.clklog.analysis.entry;
 
-import com.zcunsoft.clklog.analysis.bean.LogBean;
-import com.zcunsoft.clklog.analysis.bean.LogBeanCollection;
-import com.zcunsoft.clklog.analysis.cfg.RedisSettings;
+import com.zcunsoft.clklog.analysis.bean.SensorsEventsLogBean;
+import com.zcunsoft.clklog.analysis.bean.SensorsEventsLogBeanCollection;
 import com.zcunsoft.clklog.analysis.enricher.LogEnricher;
 import com.zcunsoft.clklog.analysis.utils.ClickHouseUtil;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -18,6 +16,7 @@ import java.io.File;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -31,8 +30,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * <p>
  * 功能：
  * 1. 从 Kafka 消费日志数据
- * 2. 解析并丰富数据（IP 地理位置、User-Agent 等）
- * 3. 批量写入 ClickHouse（混合模式：1000 条或 10 秒）
+ * 2. 解析为 SensorsEventsLogBean
+ * 3. 批量写入 ClickHouse sensors_events 表（混合模式：1000 条或 10 秒）
  * 4. 手动提交 Kafka offset
  */
 public class KafkaClickHouseConsumer {
@@ -51,7 +50,7 @@ public class KafkaClickHouseConsumer {
     private LogEnricher logEnricher;
 
     // 批次缓冲区
-    private final List<LogBean> batchBuffer = new ArrayList<>();
+    private final List<SensorsEventsLogBean> batchBuffer = new ArrayList<>();
 
     // 时间跟踪
     private long lastFlushTime = System.currentTimeMillis();
@@ -65,32 +64,26 @@ public class KafkaClickHouseConsumer {
     private final AtomicBoolean running = new AtomicBoolean(true);
 
     /**
-     * ClickHouse 插入 SQL
+     * ClickHouse 插入 SQL - sensors_events 表
      */
-    private static final String INSERT_SQL = "insert into log_analysis (" +
-            "distinct_id,typeContext,event,time,track_id,flush_time,identity_cookie_id,lib,lib_method,lib_version," +
-            "timezone_offset,screen_height,screen_width,viewport_height,viewport_width,referrer,url,url_path,title,latest_referrer," +
-            "latest_search_keyword,latest_traffic_source_type,is_first_day,is_first_time,referrer_host,log_time,stat_date,stat_hour,element_id," +
-            "project_name,client_ip,country,province,city,app_id,app_name," +
-            "app_state,app_version,brand,browser,browser_version,carrier,device_id,element_class_name,element_content,element_name," +
-            "element_position,element_selector,element_target_url,element_type,first_channel_ad_id,first_channel_adgroup_id,first_channel_campaign_id,first_channel_click_id,first_channel_name,latest_landing_page," +
-            "latest_referrer_host,latest_scene,latest_share_method,latest_utm_campaign,latest_utm_content,latest_utm_medium,latest_utm_source,latest_utm_term,latitude,longitude," +
-            "manufacturer,matched_key,matching_key_list,model,network_type,os,os_version,receive_time,screen_name,screen_orientation," +
-            "short_url_key,short_url_target,source_package_name,track_signup_original_id,user_agent,utm_campaign,utm_content,utm_matching_type,utm_medium,utm_source," +
-            "utm_term,viewport_position,wifi,kafka_data_time,project_token,crc,is_compress,event_duration,user_key," +
-            "is_logined,download_channel,event_session_id,raw_url,create_time,app_crashed_reason" +
-            ") values (" +
-            "?,?,?,?,?,?,?,?,?,?," +
-            "?,?,?,?,?,?,?,?,?,?," +
-            "?,?,?,?,?,?,?,?,?,?," +
-            "?,?,?,?,?,?,?," +
-            "?,?,?,?,?,?,?,?,?,?," +
-            "?,?,?,?,?,?,?,?,?,?," +
-            "?,?,?,?,?,?,?,?,?,?," +
-            "?,?,?,?,?,?,?,?,?,?," +
-            "?,?,?,?,?,?,?,?,?,?," +
-            "?,?,?,?,?,?,?,?,?," +
-            "?,?,?,?,?,?,?)";
+    private static final String INSERT_SQL = "INSERT INTO sensors_events (" +
+            "_track_id, time, type, distinct_id, anonymous_id, event, _flush_time, " +
+            "identity_anonymous_id, identity_android_id, " +
+            "lib_method, lib, lib_version, app_version, lib_detail, " +
+            "town_name, town_action, " +
+            "is_first_day, os, os_version, manufacturer, model, brand, " +
+            "screen_width, screen_height, timezone_offset, app_id, app_name, " +
+            "wifi, network_type, lib_plugin_version, device_id, " +
+            "raw_identities, raw_lib, raw_properties, raw_event_params" +
+            ") VALUES (" +
+            "?, fromUnixTimestamp64Milli(?, 3), ?, ?, ?, ?, fromUnixTimestamp64Milli(?, 3), " +
+            "?, ?, " +
+            "?, ?, ?, ?, ?, " +
+            "?, ?, " +
+            "?, ?, ?, ?, ?, ?, " +
+            "?, ?, ?, ?, ?, " +
+            "?, ?, ?, ?, " +
+            "?, ?, ?, ?)";
 
     /**
      * 构造函数
@@ -144,10 +137,7 @@ public class KafkaClickHouseConsumer {
      */
     public void initialize() throws SQLException {
         // 初始化 LogEnricher
-        RedisSettings redisSetting = createRedisSettings();
-        String ipFileLocation = config.getProperty("processing-file-location", "");
-        String globalAppCode = config.getProperty("global.app.code", "clklog-global");
-        logEnricher = new LogEnricher(redisSetting, ipFileLocation, globalAppCode);
+        logEnricher = new LogEnricher();
 
         // 初始化 ClickHouse 连接
         String clickhouseHost = config.getProperty("clickhouse.host");
@@ -163,44 +153,6 @@ public class KafkaClickHouseConsumer {
         String topic = config.getProperty("kafka.clklog-topic", "clklog");
         consumer.subscribe(Collections.singletonList(topic));
         logger.info("Kafka consumer subscribed to topic: {}", topic);
-    }
-
-    /**
-     * 创建 Redis 配置
-     */
-    private RedisSettings createRedisSettings() {
-        RedisSettings redisSetting = new RedisSettings();
-        redisSetting.setHost(config.getProperty("redis.host"));
-        redisSetting.setPort(Integer.parseInt(config.getProperty("redis.port", "6379")));
-
-        String redisPwd = config.getProperty("redis.password", "");
-        if (StringUtils.isBlank(redisPwd)) {
-            redisSetting.setPassword(null);
-        } else {
-            redisSetting.setPassword(redisPwd);
-        }
-
-        int redisDatabase = Integer.parseInt(config.getProperty("redis.database", "0"));
-        if (redisDatabase >= 0) {
-            redisSetting.setDatabase(redisDatabase);
-        }
-
-        RedisSettings.Pool pool = new RedisSettings.Pool();
-        pool.setMaxActive(Integer.parseInt(config.getProperty("redis.pool.max-active", "3")));
-        pool.setMaxIdle(Integer.parseInt(config.getProperty("redis.pool.max-idle", "3")));
-        pool.setMinIdle(Integer.parseInt(config.getProperty("redis.pool.min-idle", "0")));
-        pool.setMaxWait(Integer.parseInt(config.getProperty("redis.pool.max-wait", "-1")));
-        redisSetting.setPool(pool);
-
-        String sentinelMaster = config.getProperty("redis.sentinel.master");
-        if (sentinelMaster != null) {
-            RedisSettings.Sentinel sentinel = new RedisSettings.Sentinel();
-            sentinel.setMaster(sentinelMaster);
-            sentinel.setNodes(config.getProperty("redis.sentinel.nodes"));
-            redisSetting.setSentinel(sentinel);
-        }
-
-        return redisSetting;
     }
 
     /**
@@ -283,11 +235,11 @@ public class KafkaClickHouseConsumer {
      * 处理单条记录
      */
     private void processRecord(String record) {
-        LogBeanCollection collection = logEnricher.enrich(record);
-        List<LogBean> logBeans = collection.getData();
+        SensorsEventsLogBeanCollection collection = logEnricher.enrich(record);
+        List<SensorsEventsLogBean> beans = collection.getData();
 
-        if (logBeans != null && !logBeans.isEmpty()) {
-            batchBuffer.addAll(logBeans);
+        if (beans != null && !beans.isEmpty()) {
+            batchBuffer.addAll(beans);
         }
     }
 
@@ -322,8 +274,8 @@ public class KafkaClickHouseConsumer {
 
         try {
             // 批量插入
-            for (LogBean logBean : batchBuffer) {
-                setPreparedStatementParameters(clickhousePst, logBean);
+            for (SensorsEventsLogBean bean : batchBuffer) {
+                setPreparedStatementParameters(clickhousePst, bean);
                 clickhousePst.addBatch();
             }
 
@@ -347,124 +299,57 @@ public class KafkaClickHouseConsumer {
     /**
      * 设置 PreparedStatement 参数
      */
-    private void setPreparedStatementParameters(PreparedStatement pst, LogBean value) throws SQLException {
-        pst.setString(1, value.getDistinctId());
-        pst.setString(2, value.getTypeContext());
-        pst.setString(3, value.getEvent());
-        pst.setString(4, String.valueOf(value.getTime()));
-        pst.setString(5, value.getTrackId());
-        pst.setString(6, String.valueOf(value.getFlushTime()));
-        pst.setString(7, value.getIdentityCookieId());
-        pst.setString(8, value.getLib());
-        pst.setString(9, value.getLibMethod());
-        pst.setString(10, value.getLibVersion());
-        pst.setString(11, value.getTimezoneOffset());
-        pst.setString(12, value.getScreenHeight());
-        pst.setString(13, value.getScreenWidth());
-        pst.setString(14, value.getViewportHeight());
-        pst.setString(15, value.getViewportWidth());
-        pst.setString(16, value.getReferrer());
-        pst.setString(17, value.getUrl());
-        pst.setString(18, value.getUrlPath());
-        pst.setString(19, value.getTitle());
-        pst.setString(20, value.getLatestReferrer());
-        pst.setString(21, value.getLatestSearchKeyword());
-        pst.setString(22, value.getLatestTrafficSourceType());
-        pst.setString(23, value.getIsFirstDay());
-        pst.setString(24, value.getIsFirstTime());
-        pst.setString(25, value.getReferrerHost());
-        pst.setTimestamp(26, value.getLogTime());
-        pst.setDate(27, value.getStatDate() != null ? java.sql.Date.valueOf(value.getStatDate()) : null);
-        pst.setString(28, value.getStatHour());
-        pst.setString(29, value.getElementId());
-        pst.setString(30, value.getProjectName());
-        pst.setString(31, value.getClientIp());
-        pst.setString(32, value.getCountry());
-        pst.setString(33, value.getProvince());
-        pst.setString(34, value.getCity());
-        pst.setString(35, value.getAppId());
-        pst.setString(36, value.getAppName());
-        pst.setString(37, value.getAppState());
-        pst.setString(38, value.getAppVersion());
-        pst.setString(39, value.getBrand());
-        pst.setString(40, value.getBrowser());
-        pst.setString(41, value.getBrowserVersion());
-        pst.setString(42, value.getCarrier());
-        pst.setString(43, value.getDeviceId());
-        pst.setString(44, value.getElementClassName());
-        pst.setString(45, value.getElementContent());
-        pst.setString(46, value.getElementName());
-        pst.setString(47, value.getElementPosition());
-        pst.setString(48, value.getElementSelector());
-        pst.setString(49, value.getElementTargetUrl());
-        pst.setString(50, value.getElementType());
-        pst.setString(51, value.getFirstChannelAdId());
-        pst.setString(52, value.getFirstChannelAdgroupId());
-        pst.setString(53, value.getFirstChannelCampaignId());
-        pst.setString(54, value.getFirstChannelClickId());
-        pst.setString(55, value.getFirstChannelName());
-        pst.setString(56, value.getLatestLandingPage());
-        pst.setString(57, value.getLatestReferrerHost());
-        pst.setString(58, value.getLatestScene());
-        pst.setString(59, value.getLatestShareMethod());
-        pst.setString(60, value.getLatestUtmCampaign());
-        pst.setString(61, value.getLatestUtmContent());
-        pst.setString(62, value.getLatestUtmMedium());
-        pst.setString(63, value.getLatestUtmSource());
-        pst.setString(64, value.getLatestUtmTerm());
+    private void setPreparedStatementParameters(PreparedStatement pst, SensorsEventsLogBean bean) throws SQLException {
+        // _track_id, time, type, distinct_id, anonymous_id, event, _flush_time
+        pst.setObject(1, bean.get_track_id());
+        pst.setObject(2, bean.getTime());
+        pst.setString(3, bean.getType());
+        pst.setString(4, bean.getDistinct_id());
+        pst.setString(5, bean.getAnonymous_id());
+        pst.setString(6, bean.getEvent());
+        pst.setObject(7, bean.get_flush_time());
 
-        if (value.getLatitude() == null) {
-            pst.setObject(65, null);
-        } else {
-            pst.setDouble(65, value.getLatitude());
-        }
-        if (value.getLongitude() == null) {
-            pst.setObject(66, null);
-        } else {
-            pst.setDouble(66, value.getLongitude());
-        }
+        // identity_anonymous_id, identity_android_id
+        pst.setString(8, bean.getIdentity_anonymous_id());
+        pst.setString(9, bean.getIdentity_android_id());
 
-        pst.setString(67, value.getManufacturer());
-        pst.setString(68, value.getMatchedKey());
-        pst.setString(69, value.getMatchingKeyList());
-        pst.setString(70, value.getModel());
-        pst.setString(71, value.getNetworkType());
-        pst.setString(72, value.getOs());
-        pst.setString(73, value.getOsVersion());
-        pst.setString(74, value.getReceiveTime());
-        pst.setString(75, value.getScreenName());
-        pst.setString(76, value.getScreenOrientation());
-        pst.setString(77, value.getShortUrlKey());
-        pst.setString(78, value.getShortUrlTarget());
-        pst.setString(79, value.getSourcePackageName());
-        pst.setString(80, value.getTrackSignupOriginalId());
-        pst.setString(81, value.getUserAgent());
-        pst.setString(82, value.getUtmCampaign());
-        pst.setString(83, value.getUtmContent());
-        pst.setString(84, value.getUtmMatchingType());
-        pst.setString(85, value.getUtmMedium());
-        pst.setString(86, value.getUtmSource());
-        pst.setString(87, value.getUtmTerm());
+        // lib_method, lib, lib_version, app_version, lib_detail
+        pst.setString(10, bean.getLib_method());
+        pst.setString(11, bean.getLib());
+        pst.setString(12, bean.getLib_version());
+        pst.setString(13, bean.getApp_version());
+        pst.setString(14, bean.getLib_detail());
 
-        if (value.getViewportPosition() == null) {
-            pst.setObject(88, null);
-        } else {
-            pst.setInt(88, value.getViewportPosition());
-        }
+        // town_name, town_action
+        pst.setString(15, bean.getTown_name());
+        pst.setString(16, bean.getTown_action());
 
-        pst.setString(89, value.getWifi());
-        pst.setString(90, value.getKafkaDataTime());
-        pst.setString(91, value.getProjectToken());
-        pst.setString(92, value.getCrc());
-        pst.setString(93, value.getIsCompress());
-        pst.setDouble(94, value.getEventDuration() != null ? value.getEventDuration() : 0D);
-        pst.setString(95, value.getUserKey());
-        pst.setInt(96, value.getIsLogined() != null ? value.getIsLogined() : 0);
-        pst.setString(97, value.getDownloadChannel());
-        pst.setString(98, value.getEventSessionId());
-        pst.setString(99, value.getRawUrl());
-        pst.setString(100, value.getCreateTime());
-        pst.setString(101, value.getAppCrashedReason());
+        // is_first_day, os, os_version, manufacturer, model, brand
+        pst.setObject(17, bean.getIs_first_day());
+        pst.setString(18, bean.getOs());
+        pst.setString(19, bean.getOs_version());
+        pst.setString(20, bean.getManufacturer());
+        pst.setString(21, bean.getModel());
+        pst.setString(22, bean.getBrand());
+
+        // screen_width, screen_height, timezone_offset, app_id, app_name
+        pst.setObject(23, bean.getScreen_width());
+        pst.setObject(24, bean.getScreen_height());
+        pst.setObject(25, bean.getTimezone_offset());
+        pst.setString(26, bean.getApp_id());
+        pst.setString(27, bean.getApp_name());
+
+        // wifi, network_type, lib_plugin_version, device_id
+        pst.setObject(28, bean.getWifi());
+        pst.setString(29, bean.getNetwork_type());
+        pst.setString(30, bean.getLib_plugin_version() != null ? String.join(",", bean.getLib_plugin_version()) : null);
+        pst.setString(31, bean.getDevice_id());
+
+        // raw_identities, raw_lib, raw_properties, raw_event_params
+        pst.setString(32, bean.getRaw_identities());
+        pst.setString(33, bean.getRaw_lib());
+        pst.setString(34, bean.getRaw_properties());
+        pst.setString(35, bean.getRaw_event_params());
     }
 
     /**
