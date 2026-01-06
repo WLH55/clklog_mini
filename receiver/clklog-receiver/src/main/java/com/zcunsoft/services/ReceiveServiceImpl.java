@@ -160,8 +160,8 @@ public class ReceiveServiceImpl implements IReceiveService {
                     }
                     queryCriteria.setUa(ua);
                     queryCriteria.setData(dataFinal);
-                    // 最小可执行单元：不再放入队列，直接在控制器中处理
-                    // constsDataHolder.getLogQueue().put(queryCriteria);
+                    // 数据解析完成，由控制器放入内存队列
+                    constsDataHolder.getLogQueue().put(queryCriteria);
                     storeLogger.info(ip + "," + dataFinal);
                 }
             } catch (Exception e) {
@@ -342,10 +342,9 @@ public class ReceiveServiceImpl implements IReceiveService {
         try {
             JsonNode array = objectMapper.readTree(queryCriteria.getData());
 
+            // 使用全局项目配置（不再根据 project 字段选择）
             ProjectSetting projectSetting = constsDataHolder.getHtProjectSetting().get("clklog-global");
-            if (constsDataHolder.getHtProjectSetting().containsKey(queryCriteria.getProject())) {
-                projectSetting = constsDataHolder.getHtProjectSetting().get(queryCriteria.getProject());
-            }
+
             if (array.isArray()) {
                 for (JsonNode jn : array) {
                     LogBean logBean = ExtractUtil.extractToLogBean(jn, userAgentAnalyzer, projectSetting, region, queryCriteria);
@@ -578,7 +577,12 @@ public class ReceiveServiceImpl implements IReceiveService {
             for (QueryCriteria queryCriteria : queryCriteriaList) {
                 String dataFinal = queryCriteria.getData();
                 if (dataFinal != null && !dataFinal.trim().isEmpty()) {
-                    String logData = String.valueOf(System.currentTimeMillis()) + ',' + queryCriteria.getProject() + ',' + queryCriteria.getToken() + ',' + queryCriteria.getCrc() + ',' + queryCriteria.getGzip() + ',' + queryCriteria.getClientIp() + ',' + dataFinal;
+                    // 格式: timestamp,crc,gzip,clientIp,data
+                    String logData = String.valueOf(System.currentTimeMillis()) + ',' +
+                            queryCriteria.getCrc() + ',' +
+                            queryCriteria.getGzip() + ',' +
+                            queryCriteria.getClientIp() + ',' +
+                            dataFinal;
                     producerKafka.sendMessgae(kafkaSetting.getProducer().getTopic(), logData);
                 }
             }
@@ -608,7 +612,7 @@ public class ReceiveServiceImpl implements IReceiveService {
             if (array.isArray()) {
                 for (JsonNode jsonNode : array) {
                     SensorsEventsLogBean bean = SensorsDataMapper.mapToSensorsEvents(jsonNode);
-                    if (com.zcunsoft.util.SensorsDataMapper.isValid(bean)) {
+                    if (SensorsDataMapper.isValid(bean)) {
                         beanList.add(bean);
                     }
                 }
@@ -625,6 +629,55 @@ public class ReceiveServiceImpl implements IReceiveService {
 
         } catch (Exception ex) {
             logger.error("saveSensorsDataToClickHouse error", ex);
+        }
+    }
+
+    /**
+     * 批量解析神策数据并写入 sensors_events 表
+     * 优化：将多个 QueryCriteria 的数据合并后批量写入
+     *
+     * @param queryCriteriaList 查询条件列表
+     */
+    @Override
+    public void batchSaveSensorsDataToClickHouse(List<QueryCriteria> queryCriteriaList) {
+        if (queryCriteriaList == null || queryCriteriaList.isEmpty()) {
+            return;
+        }
+
+        // 收集所有的 SensorsEventsLogBean
+        List<SensorsEventsLogBean> allBeanList = new ArrayList<>();
+
+        for (QueryCriteria queryCriteria : queryCriteriaList) {
+            if (queryCriteria == null || queryCriteria.getData() == null) {
+                continue;
+            }
+
+            try {
+                // 解析 JSON 数组
+                JsonNode array = objectMapper.readTree(queryCriteria.getData());
+
+                if (array.isArray()) {
+                    for (JsonNode jsonNode : array) {
+                        SensorsEventsLogBean bean = SensorsDataMapper.mapToSensorsEvents(jsonNode);
+                        if (SensorsDataMapper.isValid(bean)) {
+                            allBeanList.add(bean);
+                        }
+                    }
+                } else {
+                    SensorsEventsLogBean bean = SensorsDataMapper.mapToSensorsEvents(array);
+                    if (SensorsDataMapper.isValid(bean)) {
+                        allBeanList.add(bean);
+                    }
+                }
+
+            } catch (Exception ex) {
+                logger.error("解析 QueryCriteria 数据失败: " + queryCriteria.getClientIp(), ex);
+            }
+        }
+
+        // 批量写入 ClickHouse
+        if (!allBeanList.isEmpty()) {
+            doSaveToSensorsEvents(allBeanList);
         }
     }
 

@@ -30,4 +30,11 @@ public interface IReceiveService {
      * @param queryCriteria 查询条件
      */
     void saveSensorsDataToClickHouse(QueryCriteria queryCriteria);
+
+    /**
+     * 批量解析神策数据并写入 sensors_events 表
+     *
+     * @param queryCriteriaList 查询条件列表
+     */
+    void batchSaveSensorsDataToClickHouse(List<QueryCriteria> queryCriteriaList);
 }

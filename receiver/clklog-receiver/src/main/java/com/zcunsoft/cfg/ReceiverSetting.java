@@ -10,6 +10,16 @@ public class ReceiverSetting {
 
     private boolean enableSimpleVersion;
 
+    /**
+     * 批量处理大小
+     */
+    private int batchSize = 1000;
+
+    /**
+     * 时间触发间隔（毫秒）
+     */
+    private long flushInterval = 5000;
+
     private String resourcePath = "";
 
     private String[] accessControlAllowOriginPatterns;
@@ -36,6 +46,22 @@ public class ReceiverSetting {
 
     public void setEnableSimpleVersion(boolean enableSimpleVersion) {
         this.enableSimpleVersion = enableSimpleVersion;
+    }
+
+    public int getBatchSize() {
+        return batchSize;
+    }
+
+    public void setBatchSize(int batchSize) {
+        this.batchSize = batchSize;
+    }
+
+    public long getFlushInterval() {
+        return flushInterval;
+    }
+
+    public void setFlushInterval(long flushInterval) {
+        this.flushInterval = flushInterval;
     }
 
     public String[] getAccessControlAllowOriginPatterns() {

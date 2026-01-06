@@ -1,6 +1,7 @@
 package com.zcunsoft.controller;
 
 
+import com.zcunsoft.handlers.ConstsDataHolder;
 import com.zcunsoft.model.QueryCriteria;
 import com.zcunsoft.services.IReceiveService;
 import org.springframework.http.HttpStatus;
@@ -18,12 +19,13 @@ public class KafkaController {
     @Resource
     private IReceiveService receiveService;
 
+    @Resource
+    private ConstsDataHolder constsDataHolder;
+
     @RequestMapping(value = "api/gp", method = {RequestMethod.GET, RequestMethod.POST})
     public ResponseEntity<String> gp(QueryCriteria queryCriteria, HttpServletRequest request) {
+        // 解析日志数据
         receiveService.extractLog(queryCriteria, request);
-
-        // 最小可执行单元：解析完成后直接写入 ClickHouse
-        receiveService.saveSensorsDataToClickHouse(queryCriteria);
 
         return new ResponseEntity<>(HttpStatus.OK);
     }

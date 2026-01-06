@@ -7,10 +7,6 @@ public class QueryCriteria {
 
     private String data_list;
 
-    private String project;
-
-    private String token;
-
     private String data;
 
     private String gzip = "0";
