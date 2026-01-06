@@ -1,6 +1,5 @@
 package com.zcunsoft.services;
 
-import com.zcunsoft.model.LogBean;
 import com.zcunsoft.model.QueryCriteria;
 import com.zcunsoft.model.Region;
 
@@ -14,22 +13,13 @@ public interface IReceiveService {
 
     Region analysisRegionFromIpBaseOnIp2Loc(String clientIp);
 
-    List<LogBean> analysisData(QueryCriteria queryCriteria);
-
-    void saveToClickHouse(List<QueryCriteria> queryCriteriaList);
-
     void loadCity();
 
     void loadProjectSetting();
 
     void extractLog(QueryCriteria queryCriteria, HttpServletRequest request);
 
-    /**
-     * 解析神策数据并直接写入 events_flat 表
-     *
-     * @param queryCriteria 查询条件
-     */
-    void saveSensorsDataToClickHouse(QueryCriteria queryCriteria);
+
 
     /**
      * 批量解析神策数据并写入 sensors_events 表
