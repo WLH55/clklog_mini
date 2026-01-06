@@ -10,27 +10,16 @@
 		<maven.compiler.source>8</maven.compiler.source>
 		<maven.compiler.target>8</maven.compiler.target>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<flink.version>1.16.1</flink.version>
+		<kafka.version>3.4.1</kafka.version>
 		<slf4j2.version>2.20.0</slf4j2.version>
 		<java.version>1.8</java.version>
 	</properties>
 	<dependencies>
+		<!-- Kafka Client -->
 		<dependency>
-			<groupId>org.apache.flink</groupId>
-			<artifactId>flink-java</artifactId>
-			<version>${flink.version}</version>
-			<scope>provided</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.apache.flink</groupId>
-			<artifactId>flink-streaming-java</artifactId>
-			<version>${flink.version}</version>
-			<scope>provided</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.apache.flink</groupId>
-			<artifactId>flink-connector-kafka</artifactId>
-			<version>${flink.version}</version>
+			<groupId>org.apache.kafka</groupId>
+			<artifactId>kafka-clients</artifactId>
+			<version>${kafka.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>com.clickhouse</groupId>
@@ -143,7 +132,7 @@
 				<configuration>
 					<archive>
 						<manifest>
-							<mainClass>com.zcunsoft.clklog.analysis.entry.JieXiJson</mainClass>
+							<mainClass>com.zcunsoft.clklog.analysis.entry.KafkaClickHouseConsumer</mainClass>
 						</manifest>
 					</archive>
 					<descriptorRefs>
